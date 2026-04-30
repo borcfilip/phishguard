@@ -8,3 +8,6 @@ pandas
 joblib
 requests
 httpx
+beautifulsoup4
+lxml
+tldextract
