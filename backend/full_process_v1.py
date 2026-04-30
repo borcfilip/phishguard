@@ -47,7 +47,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 MODEL_PATH = os.path.join(BASE_DIR, "lgbm_detector_full.pkl")
 LIME_DATA_PATH = os.path.join(BASE_DIR, "lime_training_data_full.pkl")
-CACHE_FILE = os.path.join(BASE_DIR, "api_cache.json")
+# In-memory cache – platí iba počas behu servera, nič sa neukladá na disk
+_RUNTIME_CACHE: dict = {}
 
 # =====================================================================
 # PORADIE 50 ČŔRT – musí byť totožné s COLUMNS_TO_KEEP v train2.py
@@ -236,20 +237,10 @@ class PhishingExtractorComplete:
         self.extracted_tokens = []
 
     def _load_cache(self):
-        if os.path.exists(CACHE_FILE):
-            try:
-                with open(CACHE_FILE, 'r') as f:
-                    return json.load(f)
-            except:
-                return {}
-        return {}
+        return _RUNTIME_CACHE
 
     def _save_cache(self, data):
-        try:
-            with open(CACHE_FILE, 'w') as f:
-                json.dump(data, f, indent=4)
-        except Exception as e:
-            print(f"Nepodarilo sa uložiť cache: {e}")
+        _RUNTIME_CACHE.update(data)
 
     # ------------------------------------------------------------------
     def extract_lexical(self):
