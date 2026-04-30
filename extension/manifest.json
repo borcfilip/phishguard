@@ -18,6 +18,6 @@
   },
   "permissions": [],
   "host_permissions": [
-    "https://phishguard-api.onrender.com/*"
+    "https://phishguard-api-jy02.onrender.com"
   ]
 }
