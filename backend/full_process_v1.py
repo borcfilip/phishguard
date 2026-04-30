@@ -41,9 +41,13 @@ WHOIS_API_KEY      = "at_xPSrF5c0VXbvO9laEt4eNPGBYrhoD"
 PAGERANK_KEY       = "80cs088swsc04wsgckgcogkk0ccgg4sc4wc4gow4"
 DATAFORSEO_LOGIN   = "20filipborc03@gmail.com"   # ← zmeň na svoje DataForSEO prihlasovacie meno
 DATAFORSEO_PASSWORD= "00dcf5cbcb143076"      # ← zmeň na svoje DataForSEO heslo
-CACHE_FILE         = "api_cache.json"
-MODEL_PATH         = "lgbm_detector_full.pkl"
-LIME_DATA_PATH     = "lime_training_data_full.pkl"
+
+# Získaj cestu k priečinku, kde sa nachádza tento súbor
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_PATH = os.path.join(BASE_DIR, "lgbm_detector_full.pkl")
+LIME_DATA_PATH = os.path.join(BASE_DIR, "lime_training_data_full.pkl")
+CACHE_FILE = os.path.join(BASE_DIR, "api_cache.json")
 
 # =====================================================================
 # PORADIE 50 ČŔRT – musí byť totožné s COLUMNS_TO_KEEP v train2.py
@@ -241,8 +245,11 @@ class PhishingExtractorComplete:
         return {}
 
     def _save_cache(self, data):
-        with open(CACHE_FILE, 'w') as f:
-            json.dump(data, f, indent=4)
+        try:
+            with open(CACHE_FILE, 'w') as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            print(f"Nepodarilo sa uložiť cache: {e}")
 
     # ------------------------------------------------------------------
     def extract_lexical(self):
