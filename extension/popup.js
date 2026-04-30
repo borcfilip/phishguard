@@ -1,7 +1,7 @@
 // =============================================================
 // KONFIGURÁCIA – zmeň na svoju Render URL po deploy
 // =============================================================
-const API_URL = "https://phishguard-api.onrender.com/analyze";
+const API_URL = "https://phishguard-api-jy02.onrender.com/analyze";
 // =============================================================
 
 const urlInput   = document.getElementById("urlInput");
