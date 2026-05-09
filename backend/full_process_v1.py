@@ -45,8 +45,8 @@ DATAFORSEO_PASSWORD= "00dcf5cbcb143076"      # ← zmeň na svoje DataForSEO hes
 # Získaj cestu k priečinku, kde sa nachádza tento súbor
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-MODEL_PATH = os.path.join(BASE_DIR, "lgbm_detector_full.pkl")
-LIME_DATA_PATH = os.path.join(BASE_DIR, "lime_training_data_full.pkl")
+MODEL_PATH = os.path.join(BASE_DIR, "lgbm_tuned.pkl")
+LIME_DATA_PATH = os.path.join(BASE_DIR, "lime_training_data_best.pkl")
 # In-memory cache – platí iba počas behu servera, nič sa neukladá na disk
 _RUNTIME_CACHE: dict = {}
 
