@@ -37,10 +37,10 @@ warnings.filterwarnings('ignore')
 # =====================================================================
 # KONFIGURÁCIA – uprav podľa seba
 # =====================================================================
-WHOIS_API_KEY      = "at_xPSrF5c0VXbvO9laEt4eNPGBYrhoD"
-PAGERANK_KEY       = "80cs088swsc04wsgckgcogkk0ccgg4sc4wc4gow4"
-DATAFORSEO_LOGIN   = "20filipborc03@gmail.com"   # ← zmeň na svoje DataForSEO prihlasovacie meno
-DATAFORSEO_PASSWORD= "00dcf5cbcb143076"      # ← zmeň na svoje DataForSEO heslo
+DATAFORSEO_LOGIN    = os.environ.get("DATAFORSEO_LOGIN")
+DATAFORSEO_PASSWORD = os.environ.get("DATAFORSEO_PASSWORD")
+PAGERANK_KEY        = os.environ.get("PAGERANK_KEY")
+WHOIS_KEY           = os.environ.get("WHOIS_KEY")
 
 # Získaj cestu k priečinku, kde sa nachádza tento súbor
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
