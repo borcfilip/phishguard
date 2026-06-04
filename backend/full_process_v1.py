@@ -1,17 +1,3 @@
-"""
-phishing_pipeline.py
-====================
-Uceleny pipeline: URL -> extrakcia 50 crt -> LightGBM predikcia -> LIME vysvetlenie
-
-Pouzitie:
-    python phishing_pipeline.py
-    -> interaktivny rezim, zadaj URL
-
-Poziadavky (pip):
-    lightgbm, lime, scikit-learn, joblib, requests,
-    beautifulsoup4, lxml, tldextract
-"""
-
 import requests
 import joblib
 import json
@@ -35,23 +21,19 @@ import lime.lime_tabular
 warnings.filterwarnings('ignore')
 
 # =====================================================================
-# KONFIGURÁCIA – uprav podľa seba
-# =====================================================================
+
 DATAFORSEO_LOGIN    = os.environ.get("DATAFORSEO_LOGIN")
 DATAFORSEO_PASSWORD = os.environ.get("DATAFORSEO_PASSWORD")
 PAGERANK_KEY        = os.environ.get("PAGERANK_KEY")
 WHOIS_KEY           = os.environ.get("WHOIS_KEY")
 
-# Získaj cestu k priečinku, kde sa nachádza tento súbor
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 MODEL_PATH = os.path.join(BASE_DIR, "lgbm_tuned.pkl")
 LIME_DATA_PATH = os.path.join(BASE_DIR, "lime_training_data_best.pkl")
-# In-memory cache – platí iba počas behu servera, nič sa neukladá na disk
+
 _RUNTIME_CACHE: dict = {}
 
-# =====================================================================
-# PORADIE 50 ČŔRT – musí byť totožné s COLUMNS_TO_KEEP v train2.py
 # =====================================================================
 FEATURES = [
     'length_url', 'length_words_raw', 'nb_eq', 'nb_and', 'nb_qm', 'nb_dots',
@@ -68,8 +50,7 @@ FEATURES = [
 ]
 
 # =====================================================================
-# SLOVNÍKY
-# =====================================================================
+
 BRAND_LIST = [
     'google', 'facebook', 'microsoft', 'apple', 'amazon', 'netflix',
     'paypal', 'ebay', 'linkedin', 'instagram', 'wikipedia', 'outlook',
@@ -91,31 +72,14 @@ PHISH_HINTS = [
 ]
 
 # =====================================================================
-# GOOGLE INDEX CHECKER – DataForSEO API
-# =====================================================================
+
 class GoogleIndexChecker:
-    """
-    Overuje či je doména indexovaná v Google pomocou DataForSEO SERP API.
-    Posiela dopyt "site:<domain>" a kontroluje počet organických výsledkov.
-
-    DataForSEO dokumentácia:
-        https://docs.dataforseo.com/v3/serp/google/organic/live/advanced/
-
-    Cenník (orientačný): ~$0.0025 per task (Live Advanced endpoint).
-    Pre úsporu credits je výsledok cachovaný v api_cache.json.
-    """
 
     _API_URL = "https://api.dataforseo.com/v3/serp/google/organic/live/advanced"
 
     @classmethod
     def _call_api(cls, domain: str) -> int:
-        """
-        Zavolá DataForSEO SERP API s dopytom "site:<domain>".
 
-        Vracia:
-            1  – doména je indexovaná (>= 1 organický výsledok)
-            0  – doména NIE je indexovaná alebo nastala chyba API
-        """
         import base64
 
         credentials = base64.b64encode(
@@ -185,10 +149,7 @@ class GoogleIndexChecker:
 
     @classmethod
     def check(cls, domain: str, cache: dict) -> int:
-        """
-        Hlavná metóda – vracia 1 (indexovaná) alebo 0 (neindexovaná).
-        Výsledok sa cachuje, API sa volá len raz na unikátnu doménu.
-        """
+
         if domain in cache and 'google_index' in cache[domain]:
             print(f"[google_index] Cache hit: {domain}")
             return cache[domain]['google_index']
@@ -197,12 +158,9 @@ class GoogleIndexChecker:
 
     @classmethod
     def quit(cls):
-        """Kompatibilita so zvyškom pipeline – DataForSEO nepotrebuje cleanup."""
         pass
 
 
-# =====================================================================
-# POMOCNÁ FUNKCIA – parsing WHOIS dátumu
 # =====================================================================
 def parse_whois_date(date_str):
     if not date_str:
@@ -220,8 +178,6 @@ def parse_whois_date(date_str):
     return None
 
 
-# =====================================================================
-# EXTRAKTOR – 50 ČŔRT
 # =====================================================================
 class PhishingExtractorComplete:
 
@@ -334,7 +290,7 @@ class PhishingExtractorComplete:
             try:
                 res = requests.get(
                     f"https://www.whoisxmlapi.com/whoisserver/WhoisService"
-                    f"?apiKey={WHOIS_API_KEY}&domainName={domain}&outputFormat=JSON",
+                    f"?apiKey={WHOIS_KEY}&domainName={domain}&outputFormat=JSON",
                     timeout=5
                 ).json()
                 c_date = res.get('WhoisRecord', {}).get('createdDate', '')
@@ -365,7 +321,6 @@ class PhishingExtractorComplete:
                 ['domain_age', 'whois_registered_domain', 'page_rank', 'web_traffic']})
             self._save_cache(cache)
 
-        # statistical_report – 0 ak API zlyhalo
         api_ok = (f['whois_registered_domain'] == 1 and f['page_rank'] > 0)
         f['statistical_report'] = 1 if (
             api_ok and f['domain_age'] < 180 and f['page_rank'] < 2
@@ -441,28 +396,20 @@ class PhishingExtractorComplete:
         self.google_index_check()
         self.extract_content()
 
-        # Vektor v poradí ktoré pozná model (FEATURES)
         vector = OrderedDict((k, self.features.get(k, 0)) for k in FEATURES)
         return vector, self.extracted_tokens
 
 
 # =====================================================================
-# LIME EXPLAINER – inicializovaný raz pri importe
-# =====================================================================
 class PhishingExplainer:
-    """
-    Obaluje LightGBM model a LIME explainer.
-    LIME potrebuje trénovacie dáta – načíta ich z lime_training_data.pkl
-    ktorý vytvoríš raz pomocou save_lime_data().
-    """
+
     def __init__(self, model_path=MODEL_PATH, lime_data_path=LIME_DATA_PATH):
-        # Načítanie modelu
+
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model nenájdený: {model_path}")
         self.model = joblib.load(model_path)
         print(f"[pipeline] Model načítaný: {model_path}")
 
-        # Načítanie LIME trénovacích dát
         if not os.path.exists(lime_data_path):
             raise FileNotFoundError(
                 f"LIME dáta nenájdené: {lime_data_path}\n"
@@ -471,7 +418,6 @@ class PhishingExplainer:
         X_train = joblib.load(lime_data_path)
         print(f"[pipeline] LIME trénovacie dáta načítané: {X_train.shape}")
 
-        # Inicializácia LIME – stačí raz
         self.lime_explainer = lime.lime_tabular.LimeTabularExplainer(
             training_data=X_train,
             feature_names=FEATURES,
@@ -482,69 +428,49 @@ class PhishingExplainer:
         print("[pipeline] LIME explainer pripravený.")
 
     def predict(self, feature_vector: dict) -> dict:
-        """
-        Vstup:  feature_vector – OrderedDict z PhishingExtractorComplete.run()
-        Výstup: dict s predikciou a LIME vysvetlením
-        """
-        # Numpy vektor v správnom poradí
         X = np.array([feature_vector[f] for f in FEATURES], dtype=float).reshape(1, -1)
 
-        # Predikcia
         pred_label = int(self.model.predict(X)[0])
         pred_proba = self.model.predict_proba(X)[0]
         confidence = float(pred_proba[pred_label])
 
-        # LIME lokálna analýza
         exp = self.lime_explainer.explain_instance(
             data_row=X[0],
             predict_fn=self.model.predict_proba,
-            num_features=8,      # top 8 čŕt – dostatok pre popup
-            num_samples=1000     # rýchlosť vs. presnosť (pre 50 URL stačí)
+            num_features=8,      
+            num_samples=1000    
         )
 
-        # LIME vracia podmienky ako "page_rank > 5.00" alebo
-        # "0.00 < domain_age <= 180.00" – vyextrahujeme čistý názov črty
         def extract_feature_name(lime_label):
             for feat in FEATURES:
                 if feat in lime_label:
                     return feat
-            return lime_label  # fallback ak sa nenájde
+            return lime_label
 
-        # Formátovanie výstupu
         explanation = [
             {
                 "feature":   extract_feature_name(lime_label),
-                "condition": lime_label,   # pôvodná podmienka – užitočná pre dokumentáciu
+                "condition": lime_label, 
                 "value":     round(float(feature_vector.get(extract_feature_name(lime_label), 0)), 4),
                 "impact":    round(float(impact), 4)
             }
             for lime_label, impact in exp.as_list()
         ]
 
-        # Zoradenie: najväčší vplyv (absolútna hodnota) na vrch
         explanation.sort(key=lambda x: abs(x['impact']), reverse=True)
 
         return {
             "prediction":  "phishing" if pred_label == 1 else "legitimate",
-            "confidence":  round(confidence * 100, 1),  # napr. 94.3
+            "confidence":  round(confidence * 100, 1),
             "explanation": explanation,
         }
 
 
 # =====================================================================
-# UTILITA – uloženie LIME trénovacích dát (spusti raz)
-# =====================================================================
 def save_lime_data(dataset_path: str, separator: str = ';',
                    n_samples: int = 1000,
                    output_path: str = LIME_DATA_PATH):
-    """
-    Načíta dataset, vyberie náhodných n_samples riadkov a uloží
-    numpy array pre LIME inicializáciu.
 
-    Spusti PRED prvým použitím pipeline:
-        from phishing_pipeline import save_lime_data
-        save_lime_data('C:/cesta/k/datasetu.csv')
-    """
     import pandas as pd
     df = pd.read_csv(dataset_path, sep=separator)
     X  = df[FEATURES].fillna(0).replace([np.inf, -np.inf], 0)
@@ -553,8 +479,6 @@ def save_lime_data(dataset_path: str, separator: str = ';',
     print(f"[save_lime_data] Ulozene {len(X_sample)} riadkov -> {output_path}")
 
 
-# =====================================================================
-# HLAVNÁ FUNKCIA – spustenie pre jednu URL
 # =====================================================================
 def analyze_url(url: str, explainer: PhishingExplainer,
                 verbose: bool = True) -> dict:
@@ -565,15 +489,9 @@ def analyze_url(url: str, explainer: PhishingExplainer,
     print(f"\n{'='*60}")
     print(f"Analyzujem: {url[:80]}{'...' if len(url)>80 else ''}")
     print('='*60)
-
-    # 1. Extrakcia čŕt
     extractor = PhishingExtractorComplete(url)
     feature_vector, tokens = extractor.run()
-
-    # 2. Predikcia + LIME
     result = explainer.predict(feature_vector)
-
-    # 3. Výpis
     if verbose:
         label = result['prediction'].upper()
         conf  = result['confidence']
@@ -591,25 +509,16 @@ def analyze_url(url: str, explainer: PhishingExplainer,
 
     result['features'] = dict(feature_vector)
     return result
-
-
-# =====================================================================
-# ENTRY POINT
 # =====================================================================
 if __name__ == "__main__":
-    # --- Krok 0: prvýkrát spusti save_lime_data() ---
-    # save_lime_data('C:/Users/20fil/OneDrive/Desktop/bakalarka/dataset1_bodkociarka.csv')
-
-    # --- Krok 1: inicializácia (raz na začiatku) ---
     try:
         explainer = PhishingExplainer()
     except FileNotFoundError as e:
         print(f"\nCHYBA: {e}")
         raise SystemExit(1)
 
-    # --- Krok 2: interaktívna slučka ---
+
     test_urls = [
-        # Pridaj URL ktoré chceš otestovať
         "https://www.highspeedinternet.com/ny/new-york",
     ]
 
@@ -621,9 +530,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Chyba pre {url}: {e}")
 
-    # Voliteľne: uložiť výsledky do JSON
     with open("pipeline_results.json", "w", encoding="utf-8") as f:
-        # features sú veľké, vynechaj ich z JSON výstupu ak nepotrebuješ
         out = [{k: v for k, v in r.items() if k != 'features'} for r in results]
         json.dump(out, f, indent=2, ensure_ascii=False)
     print(f"\nVysledky ulozene -> pipeline_results.json")
